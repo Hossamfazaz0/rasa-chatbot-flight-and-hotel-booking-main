@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>اختبار NLU</title>
+    <style>
+        body { font-family: Arial; padding: 20px; direction: rtl; }
+        .test-box { border: 2px solid #ddd; padding: 20px; margin: 10px 0; border-radius: 8px; }
+        .success { background: #e8f5e8; border-color: #4caf50; }
+        .error { background: #ffebee; border-color: #f44336; }
+        .info { background: #e3f2fd; border-color: #2196f3; }
+        button { padding: 10px 20px; margin: 5px; font-size: 16px; }
+        pre { background: #f5f5f5; padding: 10px; border-radius: 4px; overflow-x: auto; }
+        .city-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 15px 0; }
+        .city-test { padding: 10px; background: #f0f0f0; border-radius: 5px; cursor: pointer; text-align: center; }
+        .city-test:hover { background: #e0e0e0; }
+    </style>
+</head>
+<body>
+    <h1>🧪 اختبار NLU - التعرف على أسماء المدن</h1>
+    
+    <div class="test-box info">
+        <h3>📋 هذا الاختبار يفحص:</h3>
+        <ul>
+            <li>هل Rasa يتعرف على أسماء المدن كـ entities؟</li>
+            <li>هل يستخرج المدن بشكل صحيح؟</li>
+            <li>ما هو intent الذي يتم التعرف عليه؟</li>
+        </ul>
+    </div>
+    
+    <div class="test-box">
+        <h3>🎯 اختبار المدن المغربية:</h3>
+        <div class="city-grid">
+            <div class="city-test" onclick="testNLU('الرباط')">الرباط</div>
+            <div class="city-test" onclick="testNLU('الدار البيضاء')">الدار البيضاء</div>
+            <div class="city-test" onclick="testNLU('مراكش')">مراكش</div>
+            <div class="city-test" onclick="testNLU('فاس')">فاس</div>
+            <div class="city-test" onclick="testNLU('أكادير')">أكادير</div>
+            <div class="city-test" onclick="testNLU('طنجة')">طنجة</div>
+        </div>
+    </div>
+    
+    <div class="test-box">
+        <h3>✏️ اختبار يدوي:</h3>
+        <input type="text" id="testInput" placeholder="اكتب اسم مدينة..." style="width: 70%; padding: 10px;">
+        <button onclick="testInputNLU()">اختبار</button>
+    </div>
+    
+    <div class="test-box">
+        <h3>📊 النتائج:</h3>
+        <div id="results"></div>
+    </div>
+    
+    <script>
+        async function testNLU(text) {
+            const resultsDiv = document.getElementById('results');
+            
+            try {
+                // اختبار NLU API مباشرة
+                const response = await fetch('http://localhost:5005/model/parse', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({text: text})
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                
+                const data = await response.json();
+                console.log('NLU Response:', data);
+                
+                let resultHtml = `<div style="margin: 15px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px;">`;
+                resultHtml += `<h4>🔍 اختبار: "${text}"</h4>`;
+                
+                // Intent
+                resultHtml += `<p><strong>Intent:</strong> ${data.intent ? data.intent.name : 'غير محدد'} (${data.intent ? (data.intent.confidence * 100).toFixed(1) : 0}%)</p>`;
+                
+                // Entities
+                if (data.entities && data.entities.length > 0) {
+                    resultHtml += `<p><strong>Entities:</strong></p><ul>`;
+                    data.entities.forEach(entity => {
+                        resultHtml += `<li>${entity.entity}: "${entity.value}" (${(entity.confidence * 100).toFixed(1)}%)</li>`;
+                    });
+                    resultHtml += `</ul>`;
+                    
+                    // تحليل النتيجة
+                    const hasVilleEntity = data.entities.some(e => e.entity === 'ville_depart' || e.entity === 'ville_destination' || e.entity === 'ville_hotel');
+                    if (hasVilleEntity) {
+                        resultHtml += `<div style="background: #e8f5e8; color: #2e7d32; padding: 10px; border-radius: 4px; margin: 10px 0;"><strong>✅ نجح! تم التعرف على المدينة</strong></div>`;
+                    } else {
+                        resultHtml += `<div style="background: #ffebee; color: #c62828; padding: 10px; border-radius: 4px; margin: 10px 0;"><strong>❌ فشل! لم يتم التعرف على المدينة كـ entity</strong></div>`;
+                    }
+                } else {
+                    resultHtml += `<p><strong>Entities:</strong> لا توجد</p>`;
+                    resultHtml += `<div style="background: #ffebee; color: #c62828; padding: 10px; border-radius: 4px; margin: 10px 0;"><strong>❌ فشل! لم يتم العثور على أي entities</strong></div>`;
+                }
+                
+                // Raw response
+                resultHtml += `<details><summary>📋 البيانات الكاملة</summary><pre>${JSON.stringify(data, null, 2)}</pre></details>`;
+                resultHtml += `</div>`;
+                
+                resultsDiv.innerHTML = resultHtml + resultsDiv.innerHTML;
+                
+            } catch (error) {
+                console.error('Error:', error);
+                resultsDiv.innerHTML = `<div style="background: #ffebee; color: #c62828; padding: 15px; border-radius: 5px; margin: 15px 0;">
+                    <strong>❌ خطأ في الاختبار:</strong> ${error.message}<br>
+                    <small>تأكد من تشغيل Rasa على localhost:5005</small>
+                </div>` + resultsDiv.innerHTML;
+            }
+        }
+        
+        function testInputNLU() {
+            const input = document.getElementById('testInput');
+            const text = input.value.trim();
+            if (text) {
+                testNLU(text);
+                input.value = '';
+            }
+        }
+        
+        // تحقق من الاتصال
+        fetch('http://localhost:5005')
+            .then(response => {
+                if (response.ok) {
+                    document.getElementById('results').innerHTML = '<div style="background: #e8f5e8; color: #2e7d32; padding: 10px; border-radius: 4px;">✅ متصل بـ Rasa - جاهز للاختبار</div>';
+                } else {
+                    throw new Error('Connection failed');
+                }
+            })
+            .catch(() => {
+                document.getElementById('results').innerHTML = '<div style="background: #ffebee; color: #c62828; padding: 10px; border-radius: 4px;">❌ غير متصل - تأكد من تشغيل Rasa على localhost:5005</div>';
+            });
+        
+        // Enter key support
+        document.getElementById('testInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                testInputNLU();
+            }
+        });
+    </script>
+</body>
+</html>
